@@ -241,33 +241,43 @@ public class RNZipArchiveModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void zip(String fileOrDirectory, String destDirectory, Promise promise) {
-    List<String> filePaths = new ArrayList<>();
-    try {
-      File tmp = new File(fileOrDirectory);
-      if (tmp.exists()) {
-        if (tmp.isDirectory()) {
-          List<File> files = getSubFiles(tmp, true);
-          for (int i = 0; i < files.size(); i++) {
-            filePaths.add(files.get(i).getAbsolutePath());
-          }
-        } else {
-          filePaths.add(fileOrDirectory);
-        }
-      } else {
-        throw new FileNotFoundException(fileOrDirectory);
-      }
-    } catch (FileNotFoundException | NullPointerException e) {
-      promise.reject(null, "Couldn't open file/directory " + fileOrDirectory + ".");
-      return;
-    }
+    
+    // List<String> filePaths = new ArrayList<>();
+    // try {
+    //   File tmp = new File(fileOrDirectory);
+    //   if (tmp.exists()) {
+    //     if (tmp.isDirectory()) {
+    //       List<File> files = getSubFiles(tmp, true);
+    //       for (int i = 0; i < files.size(); i++) {
+    //         filePaths.add(files.get(i).getAbsolutePath());
+    //       }
+    //     } else {
+    //       filePaths.add(fileOrDirectory);
+    //     }
+    //   } else {
+    //     throw new FileNotFoundException(fileOrDirectory);
+    //   }
+    // } catch (FileNotFoundException | NullPointerException e) {
+    //   promise.reject(null, "Couldn't open file/directory " + fileOrDirectory + ".");
+    //   return;
+    // }
+
+    // try {
+    //   zipStream(filePaths.toArray(new String[filePaths.size()]), destDirectory, filePaths.size());
+    // } catch (Exception ex) {
+    //   promise.reject(null, ex.getMessage());
+    //   return;
+    // }
 
     try {
-      zipStream(filePaths.toArray(new String[filePaths.size()]), destDirectory, filePaths.size());
-    } catch (Exception ex) {
-      promise.reject(null, ex.getMessage());
-      return;
-    }
+      File zipDir = new File(fileOrDirectory); 
+      ZipOutputStream zipOutputStream = new ZipOutputStream(new FileOutputStream(destDirectory));
 
+      zipDirectoryHelper(zipDir, zipDir, zipOutputStream);
+      zipOutputStream.close();
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
     promise.resolve(destDirectory);
   }
 
@@ -332,6 +342,34 @@ public class RNZipArchiveModule extends ReactContextBaseJavaModule {
       }
     }
     return fileList;
+  }
+
+  private void zipDirectoryHelper(File rootDirectory, File currentDirectory, ZipOutputStream out) throws Exception {
+    byte[] data = new byte[2048];
+    File[] files = currentDirectory.listFiles();
+    if (files == null) {
+      // no files were found or this is not a directory
+
+    } else {
+      for (File file : files) {
+        if (file.isDirectory()) {
+            zipDirectoryHelper(rootDirectory, file, out);
+        } else {
+          FileInputStream fi = new FileInputStream(file);
+          // creating structure and avoiding duplicate file names
+          String name = file.getAbsolutePath().replace(rootDirectory.getAbsolutePath(), "");
+
+          ZipEntry entry = new ZipEntry(name);
+          out.putNextEntry(entry);
+          int count;
+          BufferedInputStream origin = new BufferedInputStream(fi,2048);
+          while ((count = origin.read(data, 0 , 2048)) != -1){
+            out.write(data, 0, count);
+          }
+          origin.close();
+        }
+      }
+    }
   }
 
   private void updateProgress(long extractedBytes, long totalSize, String zipFilePath) {
